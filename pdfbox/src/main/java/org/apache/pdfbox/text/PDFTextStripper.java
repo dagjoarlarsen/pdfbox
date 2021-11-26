@@ -206,35 +206,33 @@ public class PDFTextStripper extends LegacyPDFStreamEngine {
      * @throws IOException If there is an error processing the pages.
      * @author Dag Joar Larsen
      */
-    public ListIterator[] getTextTokens(PDDocument doc) throws IOException {
+    public ListIterator<TextToken> getTextTokens(PDDocument doc) throws IOException {
         return this.getTextTokens(doc, false, -1.0F, -1.0F, 3.5F);
     }
 
-    public ListIterator[] getTextTokens(PDDocument doc, boolean skipHeaderAndFooter, float startY, float endY,
+    public ListIterator<TextToken> getTextTokens(PDDocument doc, boolean skipHeaderAndFooter, float startY, float endY,
             float newLineHeightLimit) throws IOException {
         this.resetEngine();
         this.document = doc;
         this.output = new StringWriter();
-        Iterator iter = this.document.getDocumentCatalog().getPages().iterator();
-        Vector<Float> xPosVector = new Vector<Float>();
-        Vector<Float> yPosVector = new Vector<Float>();
-        Vector<Float> widthVector = new Vector<Float>();
-        Vector<Float> heightVector = new Vector<Float>();
-        Vector<String> vect = new Vector<String>();
-        ListIterator textIter = null;
-        List currPageTextList = null;
+        Iterator<PDPage> pageIterator = this.document.getDocumentCatalog().getPages().iterator();
+        ListIterator<TextPosition> textIter = null;
+        List<TextPosition> currPageTextList = null;
 
-        for (Vector textList = new Vector(); iter.hasNext(); textIter = textList.listIterator()) {
-            PDPage nextPage = (PDPage) iter.next();
+        Vector<TextToken> tokenVector = new Vector<TextToken>();
+
+        for (Vector<TextPosition> textList = new Vector<TextPosition>(); pageIterator
+                .hasNext(); textIter = textList.listIterator()) {
+            PDPage nextPage = (PDPage) pageIterator.next();
             ++this.currentPageNo;
             currPageTextList = null;
             this.processPage(nextPage);
 
             for (int i = 0; i < this.charactersByArticle.size(); ++i) {
                 if (currPageTextList == null) {
-                    currPageTextList = (List) this.charactersByArticle.get(i);
+                    currPageTextList = this.charactersByArticle.get(i);
                 } else {
-                    currPageTextList.addAll((List) this.charactersByArticle.get(i));
+                    currPageTextList.addAll((List<TextPosition>) this.charactersByArticle.get(i));
                 }
             }
 
@@ -249,14 +247,10 @@ public class PDFTextStripper extends LegacyPDFStreamEngine {
         float yPos = -100.0F;
 
         while (true) {
-            String token;
             TextPosition textPosition;
             do {
                 if (!textIter.hasNext()) {
-                    textIter = vect.listIterator();
-                    System.out.println("Returning 5 iterators");
-                    return new ListIterator[] { textIter, xPosVector.listIterator(), yPosVector.listIterator(),
-                            widthVector.listIterator(), heightVector.listIterator() };
+                    return tokenVector.listIterator();
                 }
 
                 textPosition = (TextPosition) textIter.next();
@@ -264,22 +258,25 @@ public class PDFTextStripper extends LegacyPDFStreamEngine {
                     yPos = textPosition.getY();
                 } else if (yPos < textPosition.getY() - newLineHeightLimit
                         && (!skipHeaderAndFooter || yPos > startY && yPos < endY)) {
-                    vect.add("PDF_NEW_LINE");
-                    xPosVector.add(new Float(textPosition.getX()));
-                    yPosVector.add(new Float(textPosition.getY()));
-                    widthVector.add(new Float(textPosition.getWidth()));
-                    heightVector.add(new Float(textPosition.getHeight()));
+                    TextToken currToken = new TextToken();
+                    currToken.setText("PDF_NEW_LINE");
+                    currToken.setXPos(textPosition.getX());
+                    currToken.setYPos(textPosition.getY());
+                    currToken.setWidth(textPosition.getWidth());
+                    currToken.setHeight(textPosition.getHeight());
+                    tokenVector.add(currToken);
                 }
 
                 yPos = textPosition.getY();
-                token = textPosition.toString();
             } while (skipHeaderAndFooter && (yPos <= startY || yPos >= endY));
 
-            xPosVector.add(new Float(textPosition.getX()));
-            yPosVector.add(new Float(textPosition.getY()));
-            widthVector.add(new Float(textPosition.getWidth()));
-            heightVector.add(new Float(textPosition.getHeight()));
-            vect.add(token);
+            TextToken currToken = new TextToken();
+            currToken.setText("PDF_NEW_LINE");
+            currToken.setXPos(textPosition.getX());
+            currToken.setYPos(textPosition.getY());
+            currToken.setWidth(textPosition.getWidth());
+            currToken.setHeight(textPosition.getHeight());
+            tokenVector.add(currToken);
         }
     }
 
